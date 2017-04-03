@@ -1,0 +1,76 @@
+#!/bin/sh
+#
+# Script based on:
+# https://gist.github.com/eroullit/1250603
+#
+# Modified by:
+# Markus Funke
+# https://github.com/FunkeMT
+# 2015-10-23
+#
+# last modified: 2017-03-04
+
+#
+# Hook used to indent all source files before commiting
+#
+
+INDENT="indent"
+BIN_INDENT=$(command -v "$INDENT")
+if [[ -n "$BIN_INDENT" ]]; then
+	echo "indent found ..."
+else
+	echo "Unable to find indent executable on the configuration."
+	return 1
+fi
+INDENT_ARGS="\
+--brace-indent0 \
+--indent-level4 \
+--no-space-after-function-call-names \
+--dont-format-comments \
+--no-tabs \
+--no-blank-lines-after-declarations \
+--no-blank-lines-after-commas \
+--dont-break-procedure-type"
+
+# indent / format file by type
+indent() {
+	# getting against as the current commit
+	if git rev-parse --verify HEAD >/dev/null 2>&1
+	then
+		local against=HEAD
+	else
+		# Initial commit: diff against an empty tree object
+		local against=4b825dc642cb6eb9a060e54bf8d69288fbee4904
+	fi
+
+	# loop on modified files
+	git diff --cached --name-only $against |while read file;
+	do
+		local ext=$(expr "$file" : ".*\(\..*\)")
+		case $ext in
+		.c|.h)
+			__indent_C;
+			__remove_backup;
+		;;
+		esac
+	done
+}
+
+# Indent the file with `indent' if this is a C/H file
+__indent_C() {
+	if test ! -f $file
+	then
+		return;
+	fi
+
+	echo "Indenting " $file
+	$BIN_INDENT $INDENT_ARGS $file
+	git add "$file"
+}
+
+# Remove Backupfile from `indent`
+__remove_backup() {
+	rm -f "$file~"
+}
+
+indent
